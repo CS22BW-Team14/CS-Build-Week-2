@@ -3,16 +3,149 @@ from room import Room
 from player import Player
 from world import World
 import time;
+import requests
+import random
+from ast import literal_eval
+
 def clear_console():
     if os.name == "nt":
         os.system('cls')  # For Windows
     else:
         os.system('clear')  # For Linux/OS X
 
-import random
+baseURL = "https://lambda-treasure-hunt.herokuapp.com/api/adv";
+token = "42892efb860b294a999a27448d59d598d6d03218";
+def get_header():
+     return {
+         "Content-Type": "appplication/json",
+         "Authorization": f"Token {token}"
+         };
+def createRoom(res):
+    s = res["coordinates"]
+    roomTuple = literal_eval(s)
+    return Room(res["title"], res["description"], res["room_id"], roomTuple[0], roomTuple[1]);
 
+def main():
+    #fire init to server
+    res = requests.get(f"{baseURL}/init/",headers=get_header());
+    if res.status_code != 200:
+        raise ValueError("something when wrong");
+    res = res.json();
+    time.sleep(res["cooldown"]);
+    #set up variables
+    directionToNum = {"n": 0, "s": 1, "e": 2, "w": 3 }
+    directions = ["n","s","e","w"]
+    oppdirections = {"s": "n","n": "s","w": "e","e": "w"}
+
+    quepath = [];
+    direction = "e";
+    prevroom = None;
+    startingroom = None;
+    #Find starting room and add it to list
+    #rest paper at each exist and start in direction
+    #We keep track of where we've been by laying down a path as we travel, paper is where haven't traveled
+    exits = res["exits"];
+    e = [] # backtrack to square 0
+    for i in exits:
+        if direction == i:
+            continue;
+        e.append(i);
+    quepath.append((None, e));
+    prevroom = createRoom(res)
+    startingroom = prevroom;
+    Rooms = {};
+    Rooms[str(prevroom.id)] = [(prevroom.x, prevroom.y),{},prevroom];
+
+
+    #start loop
+    while len(quepath) > 0:
+        try:
+            #print(Rooms);
+            if(direction is not None): #if we have a direction just move in that direction
+                if not direction in res["exits"]:
+                #change direction
+                    direction = None;
+                    continue; #break this cycle we will handle this next cycle
+                res = requests.post(f"{baseURL}/move/",headers=get_header(),json={"direction": direction});
+                res = res.json();
+                time.sleep(res['cooldown']);
+                room = createRoom(res);
+                prevroom.connectRooms(direction, room);
+                
+                Rooms[str(room.id)] = [(room.x, room.y),{},room];
+                print(Rooms);
+                Rooms[str(prevroom.id)][1][direction] = room.id;
+                Rooms[str(room.id)][1][oppdirections[direction]] = prevroom.id;
+                prevroom = room;
+                
+
+                exits = res["exits"];
+                # for exit
+                for i in exits:
+                    if i == direction or i == oppdirections[direction]: #if the path is in the direction im going or the direction i came from dont add it (only add tangent directions)
+                        continue;
+                    r = room.getRoomInDirection(i); #now lets check if we been there already
+                    if(r is None): #if there is no room in that direction or we have already been in that room lets not go that way
+                        continue;
+                    e.append(i);
+                quepath.append((oppdirections[direction], e));
+            else:
+                try:
+                    q = quepath[-1];  
+                    direction = q[1].pop(); #will error here if not len
+                except IndexError:
+                    direction = None;
+                    res = requests.post(f"{baseURL}/move/",headers=get_header(),json={"direction": q[0]});
+                    res = res.json();
+                    time.sleep(res["cooldown"]);
+                    prevroom = Rooms[str(res["room_id"])][2];
+                    quepath.pop(-1);
+        except KeyboardInterrupt:
+            break;
+    
+    for r in Rooms:
+        Rooms[r][2] = Rooms[r][2].toDict();
+    print(Rooms);
+    return;
+"""     if True:
+        if(direction is not None): #if we have a direction just move in that direction
+            if( curroom.getRoomInDirection(direction) is None): #if there is no room here then we need to set this to none
+                direction = None;
+                continue; #break this cycle we will handle this next cycle
+            traversalPath.append(direction)
+            player.travel(direction); #move in the direction we have been since it is not blocked
+            curroom = player.currentRoom;
+            visited_rooms.add(curroom.id)
+            #now lets add the new room into the collection path
+            exits = curroom.getExits();
+            e = []
+            for i in exits:
+                if i == direction or i == oppdirections[direction]: #if the path is in the direction im going or the direction i came from dont add it (only add tangent directions)
+                    continue;
+                r = curroom.getRoomInDirection(i); #now lets check if we been there already
+                if(r is None or r.id in visited_rooms): #if there is no room in that direction or we have already been in that room lets not go that way
+                    continue 
+                e.append(i);
+            quepath.append((oppdirections[direction], e));
+        else: #we ran into a dead end so now we need to look at other paths we could go
+            try:
+                q = quepath[-1];  
+                direction = q[1].pop(); #will error here if not len
+            except IndexError:
+                direction = None;
+                traversalPath.append(q[0])
+                player.travel(q[0]);
+                curroom = player.currentRoom;
+                visited_rooms.add(curroom.id)
+                quepath.pop(-1); """
+
+        #Go to next room
+        #connect prev room 
+        #find all exits and lay papers
+        #capture room you are in in server tree
 # Load world
-world = World()
+main();
+""" world = World()
 
 # You may uncomment the smaller graphs for development and testing purposes.
 # roomGraph={0: [(3, 5), {'n': 1}], 1: [(3, 6), {'s': 0, 'n': 2}], 2: [(3, 7), {'s': 1}]}
@@ -94,8 +227,6 @@ def depth_first_travel():
                 quepath.pop(-1);
 
 # TRAVERSAL TEST
-
-
 depth_first_travel();
 visited_rooms = set();
 visited_rooms.add(player.currentRoom)
@@ -122,7 +253,7 @@ else:
 ####### m
 player.currentRoom.printRoomDescription(player)
 
-""" while True:
+ while True:
     clear_console();
     world.printRooms(player.currentRoom.id);
     cmds = input("-> ").lower().split(" ")

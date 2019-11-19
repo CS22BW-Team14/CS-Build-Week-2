@@ -57,3 +57,15 @@ class Room:
             return None
     def getCoords(self):
         return [self.x, self.y]
+    def toDict(self):
+        return {
+            "id": self.id, 
+            "name": self.name, 
+            "description": self.description, 
+            "x": self.x, 
+            "y": self.y, 
+            "n_to": self.n_to.id if self.n_to != None else None, 
+            "s_to": self.s_to.id if self.s_to != None else None,
+            "e_to": self.e_to.id if self.e_to != None else None,
+            "w_to": self.w_to.id if self.w_to != None else None
+            }
