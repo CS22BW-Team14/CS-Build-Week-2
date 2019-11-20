@@ -38,7 +38,7 @@ def main():
     oppdirections = {"s": "n","n": "s","w": "e","e": "w"}
 
     quepath = [];
-    direction = "e";
+    direction = "n";
     prevroom = None;
     startingroom = None;
     #Find starting room and add it to list
@@ -60,7 +60,8 @@ def main():
     #start loop
     while len(quepath) > 0:
         try:
-            #print(Rooms);
+            print(quepath);
+            flag = False;
             if(direction is not None): #if we have a direction just move in that direction
                 if not direction in res["exits"]:
                 #change direction
@@ -69,23 +70,34 @@ def main():
                 res = requests.post(f"{baseURL}/move/",headers=get_header(),json={"direction": direction});
                 res = res.json();
                 time.sleep(res['cooldown']);
-                room = createRoom(res);
+                if(res["room_id"] in Rooms): #already been here
+                    flag = True;
+                    room = Rooms[res["room_id"]][2];
+                else:#need to go here
+                    flag = False;
+                    room = createRoom(res);
+                    Rooms[str(room.id)] = [(room.x, room.y),{},room];
                 prevroom.connectRooms(direction, room);
-                
-                Rooms[str(room.id)] = [(room.x, room.y),{},room];
                 print(Rooms);
                 Rooms[str(prevroom.id)][1][direction] = room.id;
                 Rooms[str(room.id)][1][oppdirections[direction]] = prevroom.id;
+                if(flag):
+                    #move back to the room we where before
+                    #then set the direction to none (this is basically a dead end)
+                    res = requests.post(f"{baseURL}/move/",headers=get_header(),json={"direction": oppdirections[direction]});
+                    res = res.json();
+                    time.sleep(res["cooldown"]);
+                    direction = None;
+                    continue;
                 prevroom = room;
-                
-
                 exits = res["exits"];
+                e = []; #WOW HOW DID I MISS THIS
                 # for exit
                 for i in exits:
                     if i == direction or i == oppdirections[direction]: #if the path is in the direction im going or the direction i came from dont add it (only add tangent directions)
                         continue;
                     r = room.getRoomInDirection(i); #now lets check if we been there already
-                    if(r is None): #if there is no room in that direction or we have already been in that room lets not go that way
+                    if(r != None): #if there is no room in that direction or we have already been in that room lets not go that way
                         continue;
                     e.append(i);
                 quepath.append((oppdirections[direction], e));
@@ -100,13 +112,17 @@ def main():
                     time.sleep(res["cooldown"]);
                     prevroom = Rooms[str(res["room_id"])][2];
                     quepath.pop(-1);
+                    #there is something wrong
+                    #its cutting out too quick
         except KeyboardInterrupt:
             break;
     
     for r in Rooms:
         Rooms[r][2] = Rooms[r][2].toDict();
     print(Rooms);
-    return;
+    return Rooms
+
+    
 """     if True:
         if(direction is not None): #if we have a direction just move in that direction
             if( curroom.getRoomInDirection(direction) is None): #if there is no room here then we need to set this to none
@@ -144,7 +160,12 @@ def main():
         #find all exits and lay papers
         #capture room you are in in server tree
 # Load world
-main();
+roomGraph = main();
+f = open("data.data", "w+")
+f.write("\n\n\n"+str(roomGraph)+"\n\n\n");
+#world = World();
+#world.loadGraph(roomGraph);
+#world.printRooms();
 """ world = World()
 
 # You may uncomment the smaller graphs for development and testing purposes.
@@ -193,7 +214,7 @@ def depth_first_travel():
         e.append(i);
     quepath.append((None, e));
     visited_rooms.add(curroom.id)
-    while len(quepath) > 0:
+    while len(quepath)  0:
         if(direction is not None): #if we have a direction just move in that direction
             if( curroom.getRoomInDirection(direction) is None): #if there is no room here then we need to set this to none
                 direction = None;
@@ -256,7 +277,7 @@ player.currentRoom.printRoomDescription(player)
  while True:
     clear_console();
     world.printRooms(player.currentRoom.id);
-    cmds = input("-> ").lower().split(" ")
+    cmds = input("- ").lower().split(" ")
     if cmds[0] in ["n", "s", "e", "w"]:
         player.travel(cmds[0], True)
     else:
