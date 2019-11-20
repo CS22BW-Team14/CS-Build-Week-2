@@ -121,7 +121,6 @@ def main():
         Rooms[r][2] = Rooms[r][2].toDict();
     print(Rooms);
     return Rooms
-
     
 """     if True:
         if(direction is not None): #if we have a direction just move in that direction
